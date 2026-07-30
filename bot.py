@@ -76,11 +76,11 @@ def handle_message(message):
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=chat_history[chat_id],
-            temperature=0.0  # Dropped to 0.0 to heavily enforce structural format compliance
+            temperature=0.0  # Heavily enforce structural format compliance
         )
         
-        # FIX 1: Fixed the object traversal to prevent code crashes
-        llm_output = response.choices.message.content.strip()
+        # CRITICAL FIX 1: Access index 0 of the choices array to prevent list object crashes
+        llm_output = response.choices[0].message.content.strip()
         execution_log["steps"].append("Groq inference computation succeeded")
         
         # FIX 2: Strip out accidental markdown backticks to prevent json parsing errors
@@ -94,15 +94,15 @@ def handle_message(message):
         
         # Safely convert textual output back to a dictionary structure
         inner_answer = json.loads(llm_output)
-        
         chat_history[chat_id].append({"role": "assistant", "content": llm_output})
 
     except Exception as e:
         inner_answer = {"error": f"Failed to compute/parse query response cleanly: {str(e)}"}
         execution_log["steps"].append(f"Processing structural anomaly: {str(e)}")
 
+    # CRITICAL FIX 2: Switched from "w" to "a" (append) to maintain valid historical JSONL tracking
     log_filename = f"run_{chat_id}.jsonl"
-    with open(log_filename, "w", encoding="utf-8") as f:
+    with open(log_filename, "a", encoding="utf-8") as f:
         f.write(json.dumps(execution_log) + "\n")
     
     public_log_url = upload_log_to_cloud(log_filename, log_filename)
@@ -129,7 +129,9 @@ def home():
 
 def run_bot():
     print("Telegram bot polling started...")
-    bot.infinity_polling()
+    # CRITICAL FIX 3: Forcefully drop old webhooks to completely eliminate Error 409 conflicts
+    bot.remove_webhook()
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
 
 if __name__ == "__main__":
     bot_thread = threading.Thread(target=run_bot)
