@@ -1,7 +1,10 @@
+
 import os
 import json
 import telebot
+import threading
 from groq import Groq
+from flask import Flask
 from supabase import create_client, Client
 
 # =====================================================================
@@ -123,9 +126,28 @@ def handle_message(message):
     bot.reply_to(message, json.dumps(final_response))
 
 
-# =====================================================================
-# 4. START THE APPLICATION
-# =====================================================================
-if __name__ == "__main__":
-    print("Groq Data Analyst Bot is currently online and active...")
+# ... Keep all your existing bot code, handlers, and logic exactly the same above ...
+
+# 1. Create a tiny fake web app to keep Render happy
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Data Analyst Bot is running safely!", 200
+
+def run_bot():
+    print("Telegram bot polling started...")
     bot.infinity_polling()
+
+# 2. Modify the execution block to run both simultaneously
+if __name__ == "__main__":
+    # Launch your Telegram bot thread in the background
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    # Run the web server on the port Render dynamically assigns
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+
